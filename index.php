@@ -91,9 +91,9 @@
         </li>
 
       </ul>
-      <form class="form-inline my-2 my-lg-0">
-        <input class="form-control mr-sm-2" type="search" placeholder="Search Events" aria-label="Search">
-        <button class="btn btn-outline-light my-2 my-sm-0 mr-5" type="submit">Search</button>
+      <form class="form-inline my-2 my-lg-0" id="searchForm">
+        <input class="form-control mr-sm-2" type="text" placeholder="Search Events" name="searchField" id="searchField">
+        <button class="btn btn-outline-light my-2 my-sm-0 mr-5" type="button" id="searchButton">Search</button>
       </form>
     </div>
   </nav>
@@ -194,25 +194,41 @@
 
 
   <!-- Edit Event Modal -->
-  <div class="modal" tabindex="-1" role="dialog" id="editModal">
+  <div class="modal fade" tabindex="-1" role="dialog" id="editModal">
     <div class="modal-dialog" role="document">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">Modal title</h5>
+          <h5 class="modal-title">Edit Event</h5>
           <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
           </button>
         </div>
         <div class="modal-body">
-          <p>Modal body text goes here.</p>
+          <form id="editEventForm">
+            <div class="form-group">
+              <label for="title">Event Title</label>
+              <input type="text" class="form-control" id="title" name="title" placeholder="Enter Title">
+            </div>
+            <div class="form-group">
+              <label for="description">Event Description</label>
+              <input type="text" class="form-control" id="description" name="description"
+                placeholder="Enter Description">
+            </div>
+            <div class="form-group">
+              <label for="dateTime">Start Date/Time</label> </br>
+              <input type="datetime-local" name="dateTime">
+            </div>
+
+          </form>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-primary">Save changes</button>
+          <button type="button" id="editEventButton" class="btn btn-primary">Save changes</button>
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
         </div>
       </div>
     </div>
   </div>
+
+
   <script>
 
     function confirmDelete(eventID) {
@@ -221,7 +237,26 @@
       $('#deleteModal').modal('show');
     }
 
+    function confirmEdit(eventID) {
+      document.getElementById('editEventButton').setAttribute('data-event-id', eventID);
+      console.log(eventID);
+      $('#editModal').modal('show');
+    }
 
+    async function editEvent(eventID) {
+      var form = document.getElementById("editEventForm");
+      var formData1 = new FormData(form);
+      formData1.append("eventID", eventID);
+
+
+      var response = await fetch("./editEvent.php", {
+        method: "POST",
+        body: formData1,
+      });
+      displayEventsInTable();
+      makeImage();
+
+    }
     async function deleteEvent(eventID) {
       var response = await fetch("deleteEvent.php", {
         method: "POST",
@@ -238,6 +273,15 @@
       return new Date(dateString)
         .toLocaleDateString('en-us',
           { weekday: "long", year: "numeric", month: "short", day: "numeric" })
+    }
+    function formatTime(timeString) {
+      const options = {
+        hour: 'numeric',
+        minute: 'numeric',
+        hour12: true
+      };
+      const time = new Date(`2000-01-01 ${timeString}`);
+      return time.toLocaleTimeString(undefined, options);
     }
 
 
@@ -288,9 +332,16 @@
         heading.textContent = event.TITLE;
         var eventDesc = document.createElement("p");
         eventDesc.textContent = event.DESCRIPTION;
+        var eventDate = document.createElement("p");
+        eventDate.textContent = event.START_DATE;
+        var eventTime = document.createElement("p");
+        eventTime.textContent = event.START_TIME;
+        var datetimeStr = document.createElement("p");
+        datetimeStr.textContent = formatDate(eventDate.textContent) + " at " + formatTime(eventTime.textContent);
 
         caption.appendChild(heading);
         caption.appendChild(eventDesc);
+        caption.appendChild(datetimeStr);
         item.appendChild(image);
         item.appendChild(caption);
         carouselInner.appendChild(item);
@@ -311,8 +362,8 @@
         <td>${event.TITLE}</td>
         <td>${event.DESCRIPTION}</td>
         <td>${formatDate(event.START_DATE)}</td>
-        <td>${event.START_TIME}</td>
-        <td> <a href="#" data-toggle="modal" data-target="#editModal"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-pencil-square mr-2" viewBox="0 0 16 16">
+        <td>${formatTime(event.START_TIME)}</td>
+        <td> <a href="#" data-toggle="modal" data-target="#editModal" class = "edit-event" onclick="confirmEdit(${event.ID})"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-pencil-square mr-2" viewBox="0 0 16 16">
     <path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/>
     <path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11z"/>
   </svg></a>
@@ -325,7 +376,40 @@
 
       });
     }
+    async function getFilteredEvents(filterValue) {
+      
+      var response = await fetch("./getAllEvents.php");
+       
+      var events = await response.json();
+      var tbody = document.getElementById("tbody");
+      filterValue = filterValue.toUpperCase();
+      tbody.innerHTML = "";
+      events.forEach((event, index) => {
+        if (event.ID.includes(filterValue) || event.TITLE.toUpperCase().includes(filterValue) || event.DESCRIPTION.includes(filterValue) ||
+        formatDate(event.START_DATE).toUpperCase().includes(filterValue) || formatTime(event.START_TIME).includes(filterValue) ) {
+          var row = document.createElement("tr");
+          row.innerHTML = `
+  <td>${event.ID}</td>
+  <td>${event.TITLE}</td>
+  <td>${event.DESCRIPTION}</td>
+  <td>${formatDate(event.START_DATE)}</td>
+  <td>${formatTime(event.START_TIME)}</td>
+  <td> <a href="#" data-toggle="modal" data-target="#editModal" class = "edit-event" onclick="confirmEdit(${event.ID})"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-pencil-square mr-2" viewBox="0 0 16 16">
+<path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/>
+<path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11z"/>
+</svg></a>
+<a href="#" data-toggle="modal" data-target="#deleteModal" class="delete-event" onclick="confirmDelete(${event.ID})"><svg xmlns="http://www.w3.org/2000/svg"  width="20" height="20" fill="currentColor" class="bi bi-trash3-fill mb-0" viewBox="0 0 16 16">
+<path d="M11 1.5v1h3.5a.5.5 0 0 1 0 1h-.538l-.853 10.66A2 2 0 0 1 11.115 16h-6.23a2 2 0 0 1-1.994-1.84L2.038 3.5H1.5a.5.5 0 0 1 0-1H5v-1A1.5 1.5 0 0 1 6.5 0h3A1.5 1.5 0 0 1 11 1.5Zm-5 0v1h4v-1a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5ZM4.5 5.029l.5 8.5a.5.5 0 1 0 .998-.06l-.5-8.5a.5.5 0 1 0-.998.06Zm6.53-.528a.5.5 0 0 0-.528.47l-.5 8.5a.5.5 0 0 0 .998.058l.5-8.5a.5.5 0 0 0-.47-.528ZM8 4.5a.5.5 0 0 0-.5.5v8.5a.5.5 0 0 0 1 0V5a.5.5 0 0 0-.5-.5Z"/>
+</svg></a>
+</td>
+`;
+          tbody.appendChild(row);
+        }
+      });
+      const tableContainer = document.querySelector('.table-container');
+        tableContainer.style.display = 'block';
 
+    }
     const viewAllEventsLink = document.querySelector('a[onclick="displayEventsInTable()"]');
     if (viewAllEventsLink) {
       viewAllEventsLink.addEventListener('click', function () {
@@ -339,25 +423,30 @@
 
 
     document.getElementById('deleteEventButton').addEventListener('click', function () {
-      // Get the event ID to be deleted
       const eventID = this.getAttribute('data-event-id');
 
-      // Call the deleteEvent function with the event ID
       deleteEvent(eventID);
 
-      // Hide the delete modal
       $('#deleteModal').modal('hide');
     });
+    document.getElementById('editEventButton').addEventListener('click', function () {
+      const eventID = this.getAttribute('data-event-id');
+
+      editEvent(eventID);
+
+      $('#editModal').modal('hide');
+    });
+
+    document.getElementById('searchButton').addEventListener('click', function () {
+
+      const searchValue = document.getElementById("searchField").value;
+      getFilteredEvents(searchValue);
+      const searchField = document.getElementById("searchField");
+      searchField.value = "";
+
+
+    });
   </script>
-
-
-
-  <?php
-
-
-  ?>
-
-
 
   <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
     integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
